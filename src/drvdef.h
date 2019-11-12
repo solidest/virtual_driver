@@ -5,7 +5,7 @@
 ** Login   <>
 **
 ** Started on  Mon Oct 28 1:24:10 PM 2019 solidest
-** Last update Wed Nov 12 1:24:57 PM 2019 solidest
+** Last update Wed Nov 12 5:15:00 PM 2019 solidest
 */
 
 #ifndef _DRVDEF_H_
@@ -52,6 +52,9 @@ typedef InterfaceHandle(*register_digitalinterface_callback)(const char*  interf
 typedef InterfaceHandle(*register_analoginterface_callback)(const char*  interface_name, int tag, send_analog_callback send);
 typedef void(*register_exfun_callback)(InterfaceHandle interface, const char* exfun_name, exfun_callback exfun);
 
+typedef void(*log_error)(const char* err);
+typedef void(*log_info)(const char* err);
+
 //for initial
 typedef struct DrvManer {
     register_card_callback registerCard;
@@ -64,6 +67,8 @@ typedef struct DrvManer {
     recved_data recvedData;
     recved_digital recvedDigital;
     recved_analog recvedAnalog;
+    log_error logError;
+    log_info logInfo;
 } DrvManer;
 
 //API
