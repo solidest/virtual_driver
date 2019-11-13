@@ -5,7 +5,7 @@
 ** Login   <>
 **
 ** Started on  Mon Oct 28 1:24:10 PM 2019 solidest
-** Last update Wed Nov 12 5:15:00 PM 2019 solidest
+** Last update Thu Nov 13 11:22:03 AM 2019 solidest
 */
 
 #ifndef _DRVDEF_H_
@@ -34,7 +34,7 @@ typedef void(*send_digital_callback)(int tag, bool value);
 typedef void(*send_analog_callback)(int tag, int value);
 typedef void(*flush_callback)(int tag);
 
-typedef void(*card_create_callback)(int tag, int idx, json& config);
+typedef void(*card_create_callback)(int tag, json& configs);
 typedef void(*card_open_callback)(int tag);
 typedef void(*card_close_callback)(int tag);
 

@@ -3,7 +3,7 @@
 
 static DrvManer* _drvManer;
 
-void card_create(int tag, int idx, json& interface_config) {
+void card_create(int tag, json& interfaces_config) {
 
 }
 
