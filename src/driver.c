@@ -1,11 +1,15 @@
 
+#include <pthread.h>
+#include <atomic>
+#include <unistd.h>
+
 #include "driver.h"
 #include "hiredis/hiredis.h"
 
 #define REDIS_UNIX_SOCKET "/var/run/redis/redis-server.sock"
 
 static DrvManer* _drvManer;
-static bool _isOpen;
+static std::atomic<bool> _isOpen(false);
 static redisContext * _db;
 
 InterfaceHandle _dio1;
@@ -15,6 +19,7 @@ InterfaceHandle _da1;
 InterfaceHandle _serial1;
 InterfaceHandle _com1;
 
+//send digital out
 void send_digital(int tag, bool value) {
     if(tag==1) {//DO DIO1
         auto reply = (redisReply*)redisCommand(_db, "LPUSH %s %c", "*DIO1", value ? '1':'0');
@@ -26,6 +31,7 @@ void send_digital(int tag, bool value) {
     }
 }
 
+//send analog out
 void send_analog(int tag, int value) {
     if(tag==1) {//AD1
         return;
@@ -37,19 +43,19 @@ void send_analog(int tag, int value) {
     }
 }
 
+//send stream data out
 void send_data(int tag, const char* buff, unsigned int buff_len, json* option) {
     if(tag==1) {//Serial1
         auto reply = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*Serial1_OUT", (size_t)12, buff, (size_t)buff_len);
-
         freeReplyObject(reply);
     }
     else if(tag==2) {//COM1
         auto reply = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*COM1_OUT", (size_t)9, buff, (size_t)buff_len);
-        
         freeReplyObject(reply);
     }
 }
 
+//recv stream data
 void recv_data(int tag) {
     char port[12];
     InterfaceHandle h;
@@ -67,13 +73,77 @@ void recv_data(int tag) {
     for(;;) {
         reply = (redisReply*)redisCommand(_db, "RPOP %s", port);
         if(reply->type!=REDIS_REPLY_STRING) {
+            freeReplyObject(reply);
             break;
+        } else {
+            _drvManer->recvedData(h, reply->str, reply->len, nullptr);
+            freeReplyObject(reply);            
         }
-        _drvManer->recvedData(h, reply->str, reply->len, nullptr);
+
     }
-    freeReplyObject(reply);
 }
 
+
+void *loop(void* arg)
+{
+
+    for(;;)
+    {
+        if(!_isOpen) {
+            break;
+        }
+
+        redisReply *reply1;
+        redisReply *reply2;
+
+        //read DO then write to DI
+        for(;;) {
+            reply1 = (redisReply*)redisCommand(_db, "RPOP %s", "*DIO1");
+            if(reply1->type!=REDIS_REPLY_STRING) {
+                freeReplyObject(reply1);
+                break;
+            } else {
+                reply2 = (redisReply*)redisCommand(_db, "LPUSH %s %s", "*DIO2", reply1->str);
+                freeReplyObject(reply1);         
+                freeReplyObject(reply2);         
+            }
+
+        }
+
+        //serial1 out to in
+        for(;;) {
+            reply1 = (redisReply*)redisCommand(_db, "RPOP %s", "*Serial1_OUT");
+            if(reply1->type!=REDIS_REPLY_STRING) {
+                freeReplyObject(reply1);
+                break;
+            } else {
+                reply2 = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*Serial1_IN", (size_t)11, reply1->str, reply1->len);
+                freeReplyObject(reply1);
+                freeReplyObject(reply2);
+            }
+        }
+
+        //COM1 out to in
+        for(;;) {
+            reply1 = (redisReply*)redisCommand(_db, "RPOP %s", "*COM1_OUT");
+            if(reply1->type!=REDIS_REPLY_STRING) {
+                freeReplyObject(reply1);
+                break;
+            } else {
+                reply2 = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*COM1_IN", (size_t)8, reply1->str, reply1->len);
+                freeReplyObject(reply1);
+                freeReplyObject(reply2);
+            }
+        }
+
+
+        usleep(200000);
+    }
+    pthread_exit(NULL);
+
+}
+
+static bool _v_dio = false;
 //tick all data
 void tick(unsigned long long timer) {
     if(!_isOpen) {
@@ -88,7 +158,11 @@ void tick(unsigned long long timer) {
         if(reply->type!=REDIS_REPLY_STRING) {
             break;
         }
-        _drvManer->recvedDigital(_dio2, strcmp(reply->str, "1")==0);
+        bool v = strcmp(reply->str, "1")==0;
+        if(_v_dio!=v) {
+            _drvManer->recvedDigital(_dio2, v);
+            _v_dio = v;
+        }
     }
     freeReplyObject(reply);
     reply = nullptr;
@@ -151,9 +225,12 @@ void card_create(int tag, json& interfaces_config) {
     }
 }
 
+
 void card_open(int tag) {
     _isOpen = true;
-
+    
+    pthread_t tid;
+    pthread_create(&tid,NULL,loop,NULL);
 }
 
 void card_close(int tag) {
