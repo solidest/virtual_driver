@@ -31,7 +31,7 @@ default: show-info all
 # non-phony targets
 $(TARGET): build-subdirs $(OBJS) find-all-objs
 	@echo " " CC "\t" -pthread -fPIC -shared -Wall -fvisibility=hidden $(CCFLAG) "*.o" $(MAIN_SRC) -o $@
-	@$(CC) -pthread -fPIC -static -shared -Wall -fvisibility=hidden  $(CCFLAG) $(ALL_OBJS)  $(LIBS) -o $@ $(MAIN_SRC)
+	@$(CC) -pthread -fPIC -shared -Wall -fvisibility=hidden  $(CCFLAG) $(ALL_OBJS)  -Wl,--whole-archive $(LIBS)  -Wl,--no-whole-archive -o $@ $(MAIN_SRC)
 
 $(TEST_TARGET): build-subdirs $(OBJS) find-all-objs
 	@echo " " CC "\t" $(CCFLAG) "*.o" $(TEST_MAIN_SRC) -o $@
