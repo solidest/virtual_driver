@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <atomic>
 #include <unistd.h>
+#include <iostream>
 
 #include "driver.h"
 #include "hiredis/hiredis.h"
@@ -22,11 +23,11 @@ InterfaceHandle _com1;
 //send digital out
 void send_digital(int tag, bool value) {
     if(tag==1) {//DO DIO1
-        auto reply = (redisReply*)redisCommand(_db, "LPUSH %s %c", "*DIO1", value ? '1':'0');
-        
+        auto reply = (redisReply*)redisCommand(_db, "LPUSH %s %s", "*DIO1", value ? "1":"0");
         freeReplyObject(reply);
     }
     else if(tag==2) {//DI DIO2
+        //_drvManer->logInfo("2");
         return;
     }
 }
@@ -38,19 +39,28 @@ void send_analog(int tag, int value) {
     }
     else if(tag==2) {//DA1 send value
         auto reply = (redisReply*)redisCommand(_db, "LPUSH %s %d", "*DA1", value);
-        
+        if(reply==NULL) {
+            _drvManer->logInfo("error");
+        }
         freeReplyObject(reply);
     }
 }
 
 //send stream data out
 void send_data(int tag, const char* buff, unsigned int buff_len, json* option) {
+    auto data = json::object();
+    data["v"] = std::string(buff, buff_len);
+    if(option) {
+        data["o"] = *option;
+    }
+    auto new_buff = json::to_msgpack(data);
+
     if(tag==1) {//Serial1
-        auto reply = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*Serial1_OUT", (size_t)12, buff, (size_t)buff_len);
+        auto reply = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*Serial1_OUT", (size_t)12, new_buff.data(), (size_t)new_buff.size());
         freeReplyObject(reply);
     }
     else if(tag==2) {//COM1
-        auto reply = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*COM1_OUT", (size_t)9, buff, (size_t)buff_len);
+        auto reply = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*COM1_OUT", (size_t)9, new_buff.data(), (size_t)new_buff.size());
         freeReplyObject(reply);
     }
 }
@@ -76,7 +86,11 @@ void recv_data(int tag) {
             freeReplyObject(reply);
             break;
         } else {
-            _drvManer->recvedData(h, reply->str, reply->len, nullptr);
+            auto buff = string(reply->str, reply->len);
+            auto data = json::from_msgpack(buff);
+            auto str = data["v"].get<string>();
+            json* option = data.contains("o") ? new json(data["o"]) : nullptr;
+            _drvManer->recvedData(h, str.c_str(), str.size(), option);
             freeReplyObject(reply);            
         }
 
@@ -87,9 +101,12 @@ void recv_data(int tag) {
 void *loop(void* arg)
 {
 
+    auto db = redisConnectUnix(REDIS_UNIX_SOCKET);
+
     for(;;)
     {
         if(!_isOpen) {
+            redisFree(db);
             break;
         }
 
@@ -98,26 +115,40 @@ void *loop(void* arg)
 
         //read DO then write to DI
         for(;;) {
-            reply1 = (redisReply*)redisCommand(_db, "RPOP %s", "*DIO1");
+            reply1 = (redisReply*)redisCommand(db, "RPOP %s", "*DIO1");
             if(reply1->type!=REDIS_REPLY_STRING) {
                 freeReplyObject(reply1);
                 break;
             } else {
-                reply2 = (redisReply*)redisCommand(_db, "LPUSH %s %s", "*DIO2", reply1->str);
+                reply2 = (redisReply*)redisCommand(db, "LPUSH %s %s", "*DIO2", reply1->str);
+                freeReplyObject(reply1); 
+                freeReplyObject(reply2);
+            }
+        }
+
+        //read DA1 then write to AD1
+        for(;;) {
+            reply1 = (redisReply*)redisCommand(db, "RPOP %s", "*DA1");
+            if(reply1->type!=REDIS_REPLY_STRING) {
+                freeReplyObject(reply1);
+                break;
+            } else {
+                reply2 = (redisReply*)redisCommand(db, "LPUSH %s %s", "*AD1", reply1->str);
                 freeReplyObject(reply1);         
                 freeReplyObject(reply2);         
             }
 
         }
 
+
         //serial1 out to in
         for(;;) {
-            reply1 = (redisReply*)redisCommand(_db, "RPOP %s", "*Serial1_OUT");
+            reply1 = (redisReply*)redisCommand(db, "RPOP %s", "*Serial1_OUT");
             if(reply1->type!=REDIS_REPLY_STRING) {
                 freeReplyObject(reply1);
                 break;
             } else {
-                reply2 = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*Serial1_IN", (size_t)11, reply1->str, reply1->len);
+                reply2 = (redisReply*)redisCommand(db,"LPUSH %b %b", "*Serial1_IN", (size_t)11, reply1->str, reply1->len);
                 freeReplyObject(reply1);
                 freeReplyObject(reply2);
             }
@@ -125,40 +156,42 @@ void *loop(void* arg)
 
         //COM1 out to in
         for(;;) {
-            reply1 = (redisReply*)redisCommand(_db, "RPOP %s", "*COM1_OUT");
+            reply1 = (redisReply*)redisCommand(db, "RPOP %s", "*COM1_OUT");
             if(reply1->type!=REDIS_REPLY_STRING) {
                 freeReplyObject(reply1);
                 break;
             } else {
-                reply2 = (redisReply*)redisCommand(_db,"LPUSH %b %b", "*COM1_IN", (size_t)8, reply1->str, reply1->len);
+                reply2 = (redisReply*)redisCommand(db,"LPUSH %b %b", "*COM1_IN", (size_t)8, reply1->str, reply1->len);
                 freeReplyObject(reply1);
                 freeReplyObject(reply2);
             }
         }
 
-
         usleep(200000);
     }
+    
     pthread_exit(NULL);
 
 }
 
 static bool _v_dio = false;
+
 //tick all data
 void tick(unsigned long long timer) {
+
     if(!_isOpen) {
         return;
     }
 
     redisReply *reply;
-    
+
     //read DI
     for(;;) {
         reply = (redisReply*)redisCommand(_db, "RPOP %s", "*DIO2");
         if(reply->type!=REDIS_REPLY_STRING) {
             break;
         }
-        bool v = strcmp(reply->str, "1")==0;
+        bool v = (reply->len==1 && reply->str[0]=='1');
         if(_v_dio!=v) {
             _drvManer->recvedDigital(_dio2, v);
             _v_dio = v;
@@ -181,7 +214,7 @@ void tick(unsigned long long timer) {
 
     //read Serial1
     recv_data(1);
-    
+
     //read COM1
     recv_data(2);
 
@@ -239,6 +272,8 @@ void card_close(int tag) {
 
 void e_initial(DrvManer* drvManer) {
     _isOpen = false;
+    _drvManer = drvManer;
+
     _db = redisConnectUnix(REDIS_UNIX_SOCKET);
     if (_db == NULL || _db->err) {
         char buff[800];
@@ -250,7 +285,7 @@ void e_initial(DrvManer* drvManer) {
         }
         _drvManer->logError(buff);
     }
-    _drvManer = drvManer;
+
     _drvManer->registerCard("VirtualDevice", 0, card_create, card_open, card_close, tick);
 }
 
