@@ -89,7 +89,7 @@ void recv_data(int tag) {
             auto buff = string(reply->str, reply->len);
             auto data = json::from_msgpack(buff);
             auto str = data["v"].get<string>();
-            json* option = data.contains("o") ? new json(data["o"]) : nullptr;
+            json* option = data.contains("o") ? &data["o"] : nullptr;
             _drvManer->recvedData(h, str.c_str(), str.size(), option);
             freeReplyObject(reply);            
         }
