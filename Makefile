@@ -1,6 +1,6 @@
 # target macros
 BIN_PATH := bin
-TARGET_NAME := virtual_interface.so
+TARGET_NAME := VirtualDevice.so
 
 TARGET := $(BIN_PATH)/$(TARGET_NAME)
 MAIN_SRC := src/driver.c
