@@ -186,26 +186,36 @@ void *loop(void* arg)
         //read DO then write to DI
         for(;;) {
             reply1 = (redisReply*)redisCommand(db, "RPOP %s", "*DIO1");
+            if(reply1==NULL) {
+                break;
+            }
             if(reply1->type!=REDIS_REPLY_STRING) {
                 freeReplyObject(reply1);
                 break;
             } else {
                 reply2 = (redisReply*)redisCommand(db, "LPUSH %s %s", "*DIO2", reply1->str);
-                freeReplyObject(reply1); 
-                freeReplyObject(reply2);
+                freeReplyObject(reply1);
+                if(reply2!=NULL) {
+                    freeReplyObject(reply2);
+                }
             }
         }
 
         //read DA1 then write to AD1
         for(;;) {
             reply1 = (redisReply*)redisCommand(db, "RPOP %s", "*DA1");
+            if(reply1==NULL) {
+                break;
+            }
             if(reply1->type!=REDIS_REPLY_STRING) {
                 freeReplyObject(reply1);
                 break;
             } else {
                 reply2 = (redisReply*)redisCommand(db, "LPUSH %s %s", "*AD1", reply1->str);
                 freeReplyObject(reply1);         
-                freeReplyObject(reply2);         
+                if(reply2!=NULL) {
+                    freeReplyObject(reply2);
+                }       
             }
 
         }
@@ -214,26 +224,36 @@ void *loop(void* arg)
         //serial1 out to in
         for(;;) {
             reply1 = (redisReply*)redisCommand(db, "RPOP %s", "*Serial1_OUT");
+            if(reply1==NULL) {
+                break;
+            }
             if(reply1->type!=REDIS_REPLY_STRING) {
                 freeReplyObject(reply1);
                 break;
             } else {
                 reply2 = (redisReply*)redisCommand(db,"LPUSH %b %b", "*Serial1_IN", (size_t)11, reply1->str, reply1->len);
                 freeReplyObject(reply1);
-                freeReplyObject(reply2);
+                if(reply2!=NULL) {
+                    freeReplyObject(reply2);
+                }
             }
         }
 
         //COM1 out to in
         for(;;) {
             reply1 = (redisReply*)redisCommand(db, "RPOP %s", "*COM1_OUT");
+            if(reply1==NULL) {
+                break;
+            }
             if(reply1->type!=REDIS_REPLY_STRING) {
                 freeReplyObject(reply1);
                 break;
             } else {
                 reply2 = (redisReply*)redisCommand(db,"LPUSH %b %b", "*COM1_IN", (size_t)8, reply1->str, reply1->len);
                 freeReplyObject(reply1);
-                freeReplyObject(reply2);
+                if(reply2!=NULL) {
+                    freeReplyObject(reply2);
+                }
             }
         }
 
