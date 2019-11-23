@@ -82,8 +82,11 @@ void recv_data(int tag) {
     redisReply *reply;
     for(;;) {
         reply = (redisReply*)redisCommand(_db, "RPOP %s", port);
-        if(reply->type!=REDIS_REPLY_STRING) {
-            freeReplyObject(reply);
+        if(reply==nullptr || reply->type!=REDIS_REPLY_STRING) {
+            if(reply) {
+                freeReplyObject(reply);
+                reply = nullptr;
+            }
             break;
         } else {
             auto buff = string(reply->str, reply->len);
@@ -93,7 +96,10 @@ void recv_data(int tag) {
             _drvManer->recvedData(h, str.c_str(), str.size(), option);
             freeReplyObject(reply);            
         }
-
+        if(reply) {
+            freeReplyObject(reply);
+            reply = nullptr;
+        }
     }
 }
 
@@ -182,34 +188,52 @@ void tick(unsigned long long timer) {
     if(!_isOpen) {
         return;
     }
-
-    redisReply *reply;
+    
 
     //read DI
     for(;;) {
+        redisReply *reply = nullptr;
+        _drvManer->logInfo("aaaa");
         reply = (redisReply*)redisCommand(_db, "RPOP %s", "*DIO2");
-        if(reply->type!=REDIS_REPLY_STRING) {
+        _drvManer->logInfo("bbbb");
+        if(reply==nullptr || reply->type!=REDIS_REPLY_STRING) {
+            if(reply) {
+                freeReplyObject(reply);
+                reply = nullptr;
+            }
             break;
         }
         bool v = (reply->len==1 && reply->str[0]=='1');
         if(_v_dio!=v) {
-            _drvManer->recvedDigital(_dio2, v);
+            //_drvManer->recvedDigital(_dio2, v);
             _v_dio = v;
         }
+        if(reply) {
+                freeReplyObject(reply);
+                reply = nullptr;
+        }
     }
-    freeReplyObject(reply);
-    reply = nullptr;
+    _drvManer->logInfo("cccc");
+    return;
+
 
     //read AD
     for(;;) {
+        redisReply *reply = nullptr;
         reply = (redisReply*)redisCommand(_db, "RPOP %s", "*AD1");
-        if(reply->type!=REDIS_REPLY_STRING) {
+        if(reply==nullptr || reply->type!=REDIS_REPLY_STRING) {
+            if(reply) {
+                freeReplyObject(reply);
+                reply = nullptr;
+            }
             break;
         }
         _drvManer->recvedAnalog(_ad1, atoi(reply->str));
+        if(reply) {
+                freeReplyObject(reply);
+                reply = nullptr;
+        }
     }
-    freeReplyObject(reply);
-    reply = nullptr;
 
 
     //read Serial1
@@ -274,7 +298,8 @@ void e_initial(DrvManer* drvManer) {
     _isOpen = false;
     _drvManer = drvManer;
 
-    _db = redisConnectUnix(REDIS_UNIX_SOCKET);
+    //_db = redisConnectUnix(REDIS_UNIX_SOCKET);
+    _db = redisConnect("127.0.0.1", 6379);
     if (_db == NULL || _db->err) {
         char buff[800];
         if (_db) {

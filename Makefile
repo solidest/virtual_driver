@@ -1,5 +1,5 @@
 # target macros
-BIN_PATH := bin
+BIN_PATH := bin/driver
 TARGET_NAME := VirtualDevice.so
 
 TARGET := $(BIN_PATH)/$(TARGET_NAME)
