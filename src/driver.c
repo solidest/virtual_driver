@@ -136,7 +136,7 @@ void flush_data(int tag) {
         }
     }
     while(comQueue.try_dequeue(info)) {
-         delete info.data;
+        delete info.data;
         if(info.option) {
             delete info.option;
         }
