@@ -11,7 +11,7 @@
 #ifndef _DRVDEF_H_
 #define _DRVDEF_H_
 
-#include "../json.hpp"
+#include "./json.hpp"
 
 using namespace std;
 using namespace nlohmann;

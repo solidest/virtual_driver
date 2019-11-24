@@ -17,7 +17,7 @@ ALL_OBJS :=
 CLEAN_FILES := $(TARGET) $(TEST_TARGET) $(OBJS)
 DIST_CLEAN_FILES := $(OBJS)
 
-LIBS := hiredis/libhiredis.a
+LIBS := 
 
 # recursive wildcard
 rwildcard=$(foreach d,$(wildcard $(addsuffix *,$(1))),$(call rwildcard,$(d)/,$(2))$(filter $(subst *,%,$(2)),$(d)))
