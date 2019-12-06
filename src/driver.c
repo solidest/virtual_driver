@@ -10,10 +10,10 @@ using namespace std;
 static DrvManer* _drvManer;
 static bool _isOpen;
 
-InterfaceHandle _dio1;
-InterfaceHandle _dio2;
-InterfaceHandle _ad1;
-InterfaceHandle _da1;
+InterfaceHandle _dio1_out;
+InterfaceHandle _dio2_in;
+InterfaceHandle _ad1_in;
+InterfaceHandle _da1_out;
 InterfaceHandle _serial1;
 InterfaceHandle _com1;
 
@@ -34,7 +34,7 @@ void send_digital(int tag, bool value) {
         digitalQueue.enqueue(value);
     }
     else if(tag==2) {//DI DIO2
-        //_drvManer->logInfo("2");
+        _drvManer->logError("can not send out on dio2_in");
         return;
     }
 }
@@ -42,20 +42,13 @@ void send_digital(int tag, bool value) {
 //send analog out
 void send_analog(int tag, int value) {
     if(tag==1) {//AD1
-        return;
+        _drvManer->logError("can not send out on ad1_in");
     }
     else if(tag==2) {//DA1 send value
         analogQueue.enqueue(value);
     }
 }
 
-    // if(tag==1) {//Serial1
-    //     h = _serial1;
-    // }
-    // else if(tag==2) {//COM1
-    //     h = _com1;
-    // }
-    
 //send stream data out
 void send_data(int tag, const char* buff, unsigned int buff_len, json* option) {
     DataInfo info;
@@ -106,12 +99,12 @@ void tick(unsigned long long timer) {
 
     bool b;
     while(digitalQueue.try_dequeue(b)) {
-        _drvManer->recvedDigital(_dio2, b);
+        _drvManer->recvedDigital(_dio2_in, b);
     }
 
     int i;
     while(analogQueue.try_dequeue(i)) {
-        _drvManer->recvedAnalog(_ad1, i);
+        _drvManer->recvedAnalog(_ad1_in, i);
     }
 
     //read Serial1
@@ -149,13 +142,13 @@ void card_create(int tag, json& interfaces_config) {
         auto inf_id = inf["interface"].get<string>();
         auto inf_name = inf["name"].get<string>().c_str();
         if(inf_id == "DIO1") {
-            _dio1 = _drvManer->registerDigitalInterface(inf_name, 1, send_digital);
+            _dio1_out = _drvManer->registerDigitalInterface(inf_name, 1, send_digital);
         } else if(inf_id == "DIO2") {
-            _dio2 = _drvManer->registerDigitalInterface(inf_name, 2, send_digital);
+            _dio2_in = _drvManer->registerDigitalInterface(inf_name, 2, nullptr);
         } else if(inf_id=="AD1") {
-            _ad1 = _drvManer->registerAnalogInterface(inf_name, 1, nullptr);
+            _ad1_in = _drvManer->registerAnalogInterface(inf_name, 1, nullptr);
         } else if(inf_id == "DA1") {
-            _da1 = _drvManer->registerAnalogInterface(inf_name, 2, send_analog);
+            _da1_out = _drvManer->registerAnalogInterface(inf_name, 2, send_analog);
         } else if(inf_id == "Serial1") {
             _serial1 = _drvManer->registerDataInterface(inf_name, 1, send_data, recv_data, flush_data);
         } else if(inf_id == "COM1") {
