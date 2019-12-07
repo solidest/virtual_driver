@@ -13,6 +13,8 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "json.hpp"
+using namespace nlohmann;
 
 #define DRV_TSTRING         1
 #define DRV_TJSONSTR        2
@@ -20,15 +22,6 @@
 #define DRV_TNIL            4
 #define DRV_TINT            5
 #define DRV_TDOUBLE         6
-
-typedef struct DrvObject {
-    int type;
-    int len;
-    char* value;
-} DrvObject;
-
-void freeDrvObject(DrvObject *o);
-DrvObject* cloneDrvObject(DrvObject* o);
 
 #define DRV_OK 0
 #define DRV_ERROR -100
@@ -40,10 +33,10 @@ typedef void* InterfaceHandle;
 //in driver for cit
 typedef void(*recv_data_callback)(int tag);
 typedef int(*counting_callback)(int tag);
-typedef DrvObject*(*exfun_callback)(DrvObject& in);
+typedef json* (*exfun_callback)(json& in);
 typedef void(*tick_callback)(unsigned long long timer); 
 
-typedef void(*send_data_callback)(int tag, const char* buff, unsigned int buff_len, DrvObject* option);
+typedef void(*send_data_callback)(int tag, const char* buff, unsigned int buff_len, json* option);
 typedef void(*send_digital_callback)(int tag, bool value);
 typedef void(*send_analog_callback)(int tag, int value);
 typedef void(*flush_callback)(int tag);
@@ -56,7 +49,7 @@ typedef void(*card_close_callback)(int tag);
 typedef void(*fdwatch_callback)(int fd, InterfaceHandle interface, int tag);
 typedef void(*selectwatch_callback)(counting_callback counting, InterfaceHandle interface, int tag);
 
-typedef void(*recved_data)(InterfaceHandle interface, const char* buff, unsigned int buff_len, DrvObject* option);
+typedef void(*recved_data)(InterfaceHandle interface, const char* buff, unsigned int buff_len, json* option);
 typedef void(*recved_digital)(InterfaceHandle interface, bool value);
 typedef void(*recved_analog)(InterfaceHandle interface, int value);
 
@@ -84,31 +77,6 @@ typedef struct DrvManer {
     log_error logError;
     log_info logInfo;
 } DrvManer;
-
-
-void freeDrvObject(DrvObject *o) {
-    if(o==NULL) {
-        return;
-    }
-    if(o->value) {
-        free(o->value);
-    }
-    free(o);
-}
-
-DrvObject* cloneDrvObject(DrvObject* o) {
-    if(o==NULL) {
-        return NULL;
-    }
-    DrvObject* ret = (DrvObject*)malloc(sizeof(DrvObject));
-    ret->type = o->type;
-    ret->len = o->len;
-    if(o->len>0 && o->value) {
-        ret->value = (char*)malloc(o->len);
-        memcpy(ret->value, o->value, o->len);
-    }
-    return ret;
-}
 
 //API
 // typedef void(*e_initial)(DrvManer* drvManer);
