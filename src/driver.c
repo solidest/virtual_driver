@@ -22,7 +22,7 @@ InterfaceHandle _com1;
 
 typedef struct DataInfo {
     string* data;
-    DrvObject* option;
+    json* option;
 } DataInfo;
 
 static ConcurrentQueue<bool> digitalQueue;
@@ -53,10 +53,13 @@ void send_analog(int tag, int value) {
 }
 
 //send stream data out
-void send_data(int tag, const char* buff, unsigned int buff_len, DrvObject* option) {
+void send_data(int tag, const char* buff, unsigned int buff_len, json* option) {
     DataInfo info;
     info.data = new string(buff, buff_len);
-    info.option = cloneDrvObject(option);
+    if(option)
+        info.option = new json(*option);
+    else
+        info.option = NULL;
 
     if(tag==1) {//Serial1
         serialQueue.enqueue(info);
@@ -73,7 +76,8 @@ void recv_data(int tag) {
         while(serialQueue.try_dequeue(info)) {
             _drvManer->recvedData(_serial1, info.data->c_str(), info.data->size(), info.option);
             delete info.data;
-            freeDrvObject(info.option);
+            if(info.option)
+                delete info.option;
         }
     }
     else if(tag==2) {//COM1
@@ -81,34 +85,12 @@ void recv_data(int tag) {
         while(comQueue.try_dequeue(info)) {
             _drvManer->recvedData(_com1, info.data->c_str(), info.data->size(), info.option);
             delete info.data;
-            freeDrvObject(info.option);
+            if(info.option)
+                delete info.option;
         }
     }
 }
 
-//tick all data
-void tick(unsigned long long timer) {
-
-    if(!_isOpen) {
-        return;
-    }
-
-    bool b;
-    while(digitalQueue.try_dequeue(b)) {
-        _drvManer->recvedDigital(_dio2_in, b);
-    }
-
-    int i;
-    while(analogQueue.try_dequeue(i)) {
-        _drvManer->recvedAnalog(_ad1_in, i);
-    }
-
-    //read Serial1
-    recv_data(1);
-
-    //read COM1
-    recv_data(2);
-}
 
 //flush io data
 void flush_data(int tag) {
@@ -120,11 +102,13 @@ void flush_data(int tag) {
     while(analogQueue.try_dequeue(i));
     while(serialQueue.try_dequeue(info)) {
         delete info.data;
-        freeDrvObject(info.option);
+        if(info.option)
+                delete info.option;
     }
     while(comQueue.try_dequeue(info)) {
         delete info.data;
-        freeDrvObject(info.option);
+        if(info.option)
+                delete info.option;
     }
 }
 
@@ -155,6 +139,31 @@ void card_create(int tag, const char* config_file) {
 void card_open(int tag) {
     flush_data(0);
     _isOpen = true;
+}
+
+
+//tick all data
+void tick(unsigned long long timer) {
+
+    if(!_isOpen) {
+        return;
+    }
+
+    bool b;
+    while(digitalQueue.try_dequeue(b)) {
+        _drvManer->recvedDigital(_dio2_in, b);
+    }
+
+    int i;
+    while(analogQueue.try_dequeue(i)) {
+        _drvManer->recvedAnalog(_ad1_in, i);
+    }
+
+    //read Serial1
+    recv_data(1);
+
+    //read COM1
+    recv_data(2);
 }
 
 void card_close(int tag) {
