@@ -3,6 +3,7 @@
         "array": "c",
         "string": "c",
         "string_view": "c",
-        "concurrentqueue.h": "c"
+        "concurrentqueue.h": "c",
+        "json.hpp": "c"
     }
 }

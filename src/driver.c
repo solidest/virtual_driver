@@ -1,11 +1,14 @@
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include "driver.h"
 #include "./concurrentqueue.h"
+#include "json.hpp"
 
 using namespace moodycamel;
 using namespace std;
+using namespace nlohmann;
 
 static DrvManer* _drvManer;
 static bool _isOpen;
@@ -19,7 +22,7 @@ InterfaceHandle _com1;
 
 typedef struct DataInfo {
     string* data;
-    json* option;
+    DrvObject* option;
 } DataInfo;
 
 static ConcurrentQueue<bool> digitalQueue;
@@ -50,14 +53,11 @@ void send_analog(int tag, int value) {
 }
 
 //send stream data out
-void send_data(int tag, const char* buff, unsigned int buff_len, json* option) {
+void send_data(int tag, const char* buff, unsigned int buff_len, DrvObject* option) {
     DataInfo info;
     info.data = new string(buff, buff_len);
-    if(option!=NULL) {
-        info.option = new json(*option);
-    } else {
-        info.option = NULL;
-    }
+    info.option = cloneDrvObject(option);
+
     if(tag==1) {//Serial1
         serialQueue.enqueue(info);
     }
@@ -73,9 +73,7 @@ void recv_data(int tag) {
         while(serialQueue.try_dequeue(info)) {
             _drvManer->recvedData(_serial1, info.data->c_str(), info.data->size(), info.option);
             delete info.data;
-            if(info.option) {
-                delete info.option;
-            }
+            freeDrvObject(info.option);
         }
     }
     else if(tag==2) {//COM1
@@ -83,9 +81,7 @@ void recv_data(int tag) {
         while(comQueue.try_dequeue(info)) {
             _drvManer->recvedData(_com1, info.data->c_str(), info.data->size(), info.option);
             delete info.data;
-            if(info.option) {
-                delete info.option;
-            }
+            freeDrvObject(info.option);
         }
     }
 }
@@ -124,21 +120,20 @@ void flush_data(int tag) {
     while(analogQueue.try_dequeue(i));
     while(serialQueue.try_dequeue(info)) {
         delete info.data;
-        if(info.option) {
-            delete info.option;
-        }
+        freeDrvObject(info.option);
     }
     while(comQueue.try_dequeue(info)) {
         delete info.data;
-        if(info.option) {
-            delete info.option;
-        }
+        freeDrvObject(info.option);
     }
 }
 
 //create interface of card
-void card_create(int tag, json& interfaces_config) {
-    for(auto& inf : interfaces_config) {
+void card_create(int tag, const char* config_file) {
+    json intrefaces;
+    ifstream i(config_file);
+    i >> intrefaces;
+    for(auto& inf : intrefaces) {
         auto inf_id = inf["interface"].get<string>();
         auto inf_name = inf["name"].get<string>().c_str();
         if(inf_id == "DIO1") {
