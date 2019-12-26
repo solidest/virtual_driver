@@ -1,5 +1,5 @@
 # target macros
-BIN_PATH := /home/pi/sch/bin/driver
+BIN_PATH := /home/solidest/sch/bin/driver
 TARGET_NAME := VirtualDevice.so
 
 TARGET := $(BIN_PATH)/$(TARGET_NAME)
